@@ -23,6 +23,18 @@ exist elsewhere. `backstagify` treats the codebase itself — manifests,
 Dockerfiles, CODEOWNERS, API specs, the README — as the source of truth, and
 reconciles the catalog against it every time you run it.
 
+## How it works
+
+![backstagify workflow diagram](docs/workflow-preview.png)
+
+The scan is a deterministic script (`scan-repo.mjs`) — no interpretation, no
+writes. Everything downstream of it (classifying type/lifecycle/owner,
+drafting TechDocs prose, deciding what changed) is the invoking agent's
+judgment, gated by a validator that blocks writing an invalid
+`catalog-info.yaml`. [Open the interactive diagram](docs/workflow.html) (pan,
+zoom, theme toggle, focused views) for the full picture, including the
+create/update branching and the fix-and-retry loop on a failed validation.
+
 ## Works with Claude Code and OpenCode, unmodified
 
 This is a single skill package with no fork or translation layer needed:
