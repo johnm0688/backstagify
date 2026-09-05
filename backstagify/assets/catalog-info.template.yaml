@@ -1,0 +1,46 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: REPLACE_WITH_COMPONENT_NAME
+  title: REPLACE_WITH_TITLE
+  description: REPLACE_WITH_DESCRIPTION
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    # github.com/project-slug: org/repo   # uncomment and fill in if a git remote was found
+  tags: []
+spec:
+  type: REPLACE_WITH_TYPE # service | website | library | custom
+  lifecycle: REPLACE_WITH_LIFECYCLE # experimental | production | deprecated
+  owner: TODO # set to the owning team/user, e.g. a Group entity ref
+  # system: REPLACE_WITH_SYSTEM
+  # providesApis:
+  #   - REPLACE_WITH_API_NAME
+  # dependsOn:
+  #   - resource:REPLACE_WITH_RESOURCE_NAME
+
+# --- Optional API entity (include only if an API spec was discovered) ---
+# ---
+# apiVersion: backstage.io/v1alpha1
+# kind: API
+# metadata:
+#   name: REPLACE_WITH_API_NAME
+#   title: REPLACE_WITH_API_TITLE
+#   description: REPLACE_WITH_API_DESCRIPTION
+# spec:
+#   type: openapi # openapi | asyncapi | graphql | grpc
+#   lifecycle: REPLACE_WITH_LIFECYCLE
+#   owner: TODO
+#   definition:
+#     $yaml: ./REPLACE_WITH_SPEC_PATH
+
+# --- Optional Resource entity (include only if an unambiguous primary datastore was found) ---
+# ---
+# apiVersion: backstage.io/v1alpha1
+# kind: Resource
+# metadata:
+#   name: REPLACE_WITH_RESOURCE_NAME
+#   title: REPLACE_WITH_RESOURCE_TITLE
+# spec:
+#   type: database # database | s3-bucket | cluster | custom
+#   lifecycle: REPLACE_WITH_LIFECYCLE
+#   owner: TODO
