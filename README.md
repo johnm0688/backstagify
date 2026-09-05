@@ -1,5 +1,11 @@
 # backstagify
 
+[![License](https://img.shields.io/github/license/johnm0688/backstagify)](LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/johnm0688/backstagify)](https://github.com/johnm0688/backstagify/commits/main)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-compatible-blueviolet)](https://claude.com/claude-code)
+[![OpenCode](https://img.shields.io/badge/OpenCode-compatible-2b2b2b)](https://opencode.ai)
+
 **Keep a repository's Backstage catalog-info.yaml and TechDocs in sync with
 the code — automatically.**
 
