@@ -30,7 +30,7 @@ function readJson(p) {
 }
 
 function walk(dir, opts, out, depth = 0) {
-  const { ignore, maxDepth, extensions } = opts;
+  const { ignore, maxDepth, extensions, filter } = opts;
   if (depth > maxDepth) return;
   let entries;
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
@@ -39,7 +39,7 @@ function walk(dir, opts, out, depth = 0) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       walk(full, opts, out, depth + 1);
-    } else if (!extensions || extensions.some((ext) => entry.name.endsWith(ext))) {
+    } else if (filter ? filter(entry.name) : (!extensions || extensions.some((ext) => entry.name.endsWith(ext)))) {
       out.push(full);
     }
   }
@@ -70,10 +70,12 @@ const readmePath = findFirst(['README.md', 'Readme.md', 'readme.md']);
 const codeownersPath = findFirst(['CODEOWNERS', '.github/CODEOWNERS', 'docs/CODEOWNERS']);
 
 const dockerfiles = [];
-walk(repoRoot, { ignore: IGNORE_DIRS, maxDepth: 3 }, dockerfiles);
-const dockerfileMatches = dockerfiles
-  .filter((f) => path.basename(f) === 'Dockerfile' || path.basename(f).startsWith('Dockerfile.'))
-  .map(relative);
+walk(
+  repoRoot,
+  { ignore: IGNORE_DIRS, maxDepth: 3, filter: (name) => name === 'Dockerfile' || name.startsWith('Dockerfile.') },
+  dockerfiles,
+);
+const dockerfileMatches = dockerfiles.map(relative);
 const dockerComposePath = findFirst(['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml']);
 
 const ciDirs = ['.github/workflows', '.gitlab-ci.yml', '.circleci/config.yml', 'Jenkinsfile']
@@ -151,6 +153,21 @@ for (const file of apiSpecCandidates) {
     apiSpecs.push({ path: relative(file), kind: 'grpc' });
     continue;
   }
+  if (file.endsWith('.json')) {
+    // JSON specs always quote their keys, so the YAML-oriented regex below
+    // (which requires an unquoted `openapi:` at line start) can never match
+    // them — parse and check the parsed object instead.
+    const json = readJson(file);
+    if (!json || json.__parseError || typeof json !== 'object') continue;
+    if (typeof json.openapi === 'string') {
+      apiSpecs.push({ path: relative(file), kind: 'openapi', version: json.openapi });
+    } else if (typeof json.swagger === 'string') {
+      apiSpecs.push({ path: relative(file), kind: 'openapi', version: json.swagger });
+    } else if (typeof json.asyncapi === 'string') {
+      apiSpecs.push({ path: relative(file), kind: 'asyncapi', version: json.asyncapi });
+    }
+    continue;
+  }
   const text = readText(file);
   if (!text) continue;
   const head = text.slice(0, 2000);
@@ -169,9 +186,27 @@ let gitSlug = null;
 const gitConfigPath = path.join(repoRoot, '.git', 'config');
 const gitConfigText = readText(gitConfigPath);
 if (gitConfigText) {
-  const urlMatch = gitConfigText.match(/url\s*=\s*(\S+)/);
-  if (urlMatch) {
-    const url = urlMatch[1];
+  // Walk sections so a non-'origin' remote listed earlier in the file (e.g.
+  // 'upstream' on a fork) doesn't win just by being the first 'url =' line.
+  const remoteUrls = {};
+  let currentRemote = null;
+  for (const line of gitConfigText.split('\n')) {
+    const sectionMatch = line.match(/^\s*\[remote\s+"([^"]+)"\]/);
+    if (sectionMatch) {
+      currentRemote = sectionMatch[1];
+      continue;
+    }
+    if (/^\s*\[/.test(line)) {
+      currentRemote = null;
+      continue;
+    }
+    if (currentRemote && !(currentRemote in remoteUrls)) {
+      const urlMatch = line.match(/^\s*url\s*=\s*(\S+)/);
+      if (urlMatch) remoteUrls[currentRemote] = urlMatch[1];
+    }
+  }
+  const url = remoteUrls.origin ?? Object.values(remoteUrls)[0] ?? null;
+  if (url) {
     const m = url.match(/[:/]([^/:]+\/[^/]+?)(\.git)?$/);
     if (m) gitSlug = m[1];
   }
@@ -180,7 +215,7 @@ if (gitConfigText) {
 // --- README ------------------------------------------------------------
 
 let readmeTitle = null;
-let readmeFirstParagraph = null;
+let readmeParagraphs = [];
 if (readmePath) {
   const text = readText(path.join(repoRoot, readmePath)) ?? '';
   const lines = text.split('\n');
@@ -188,14 +223,27 @@ if (readmePath) {
   readmeTitle = h1 ? h1.replace(/^#\s+/, '').trim() : null;
   const h1Index = h1 ? lines.indexOf(h1) : -1;
   const rest = lines.slice(h1Index + 1);
-  const paraLines = [];
+  // Collect the first few paragraphs (not just one) so the invoking agent can
+  // apply inference-heuristics.md's "if the first paragraph is just a badge
+  // row or image, look at the next paragraph instead" rule — a single
+  // captured paragraph gives it nothing to fall back to.
+  const MAX_PARAGRAPHS = 3;
+  let current = [];
   for (const line of rest) {
-    if (line.trim() === '' && paraLines.length) break;
-    if (line.trim() === '' && !paraLines.length) continue;
+    if (readmeParagraphs.length >= MAX_PARAGRAPHS) break;
     if (/^#/.test(line.trim())) break;
-    paraLines.push(line);
+    if (line.trim() === '') {
+      if (current.length) {
+        readmeParagraphs.push(current.join(' ').trim());
+        current = [];
+      }
+      continue;
+    }
+    current.push(line);
   }
-  readmeFirstParagraph = paraLines.join(' ').trim() || null;
+  if (current.length && readmeParagraphs.length < MAX_PARAGRAPHS) {
+    readmeParagraphs.push(current.join(' ').trim());
+  }
 }
 
 // --- Existing catalog / mkdocs (raw + best-effort parsed) ------------------
@@ -229,7 +277,7 @@ const result = {
   hasCatalog: !!catalogPath,
   hasMkdocs: !!mkdocsPath,
   docsFiles,
-  readme: readmePath ? { path: readmePath, title: readmeTitle, firstParagraph: readmeFirstParagraph } : null,
+  readme: readmePath ? { path: readmePath, title: readmeTitle, paragraphs: readmeParagraphs } : null,
   codeownersPath,
   dockerfiles: dockerfileMatches,
   dockerComposePath,
