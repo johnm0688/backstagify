@@ -1,7 +1,7 @@
 ---
 name: backstagify
 description: "Generate and keep up to date Backstage (backstage.io) developer-portal documentation for a software repository: scaffolds or reconciles catalog-info.yaml (Component/API/Resource entities) and TechDocs (mkdocs.yml + docs/) by scanning the codebase for owners, dependencies, APIs, and lifecycle signals. Use when the user asks to add Backstage support, register a service in the software catalog, generate or update catalog-info.yaml, set up TechDocs, or sync developer-portal docs with recent code changes."
-license: MIT
+license: Apache-2.0
 ---
 
 # backstagify

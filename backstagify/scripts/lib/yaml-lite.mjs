@@ -10,9 +10,10 @@
 //   - block scalars introduced with `|` (literal) — kept as raw text
 //   - comments (`# ...`) stripped outside of quoted strings
 //
-// Anchors, aliases, tags, and folded (`>`) scalars are NOT supported. If a file
-// uses them, parseYamlDocuments will throw — callers should fall back to
-// treating the file as opaque text (see SKILL.md's fallback guidance).
+// Anchors, aliases, tags, folded (`>`) scalars, and flow mappings (`{a: b}`)
+// are NOT supported. If a file uses them, parseYamlDocuments will throw —
+// callers should fall back to treating the file as opaque text (see
+// SKILL.md's fallback guidance).
 
 export function parseYamlDocuments(text) {
   const docs = splitDocuments(text);
@@ -72,6 +73,12 @@ function parseScalar(raw) {
     const inner = s.slice(1, -1).trim();
     if (inner === '') return [];
     return splitFlowItems(inner).map((item) => parseScalar(item.trim()));
+  }
+  if (s.startsWith('{')) {
+    // Flow mappings aren't supported (see module header) — throw rather than
+    // silently returning the raw string as if it were a scalar, which would
+    // corrupt callers' assumptions about the field's shape (e.g. metadata.labels).
+    throw new Error(`Unsupported YAML construct (flow mapping): ${s}`);
   }
   return s;
 }
@@ -271,9 +278,13 @@ function stringifyValue(value, indent) {
 
 function stringifyEntry(key, value, indent, prefixOverride) {
   const pad = prefixOverride !== undefined ? prefixOverride : '  '.repeat(indent);
-  const keyStr = /^[A-Za-z0-9_.-]+$/.test(key) ? key : JSON.stringify(key);
+  // Backstage annotation/label keys are conventionally namespaced with a
+  // '/' (e.g. `backstage.io/techdocs-ref`, `github.com/project-slug`) — keep
+  // those unquoted like any other plain key instead of JSON-escaping every
+  // annotation.
+  const keyStr = /^[A-Za-z0-9_./-]+$/.test(key) ? key : JSON.stringify(key);
   if (value !== null && typeof value === 'object' && (Array.isArray(value) ? value.length : Object.keys(value).length)) {
-    const childIndent = prefixOverride !== undefined ? indent + 1 : indent + 1;
+    const childIndent = indent + 1;
     const childStr = stringifyValue(value, childIndent).trimEnd();
     return pad + keyStr + ':\n' + childStr;
   }
